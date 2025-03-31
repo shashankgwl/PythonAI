@@ -1,0 +1,12 @@
+{
+    "OpenApiKey": "sk-proj-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "AzureSearch": {
+        "Endpoint": "https://example.search.windows.net/",
+        "Key": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+        "Index": "example-index"
+    },
+    "AdoDetails": {
+        "patToken": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+        "ADOUrl": "https://example.com/"
+    }
+}
