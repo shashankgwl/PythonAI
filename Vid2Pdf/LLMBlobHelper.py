@@ -181,7 +181,7 @@ class LLMBlobHelper:
                 except Exception as e:
                     logging.error(f"Error calling OpenAI for GUID {guid}: {e}")
 
-        finalSummary = self.final_summary(self.previous_summary)
+        finalSummary = self.get_final_summary(self.previous_summary)
         return finalSummary if finalSummary else self.previous_summary
     
 

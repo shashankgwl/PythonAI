@@ -18,6 +18,8 @@ localVideoPath = tmp_folder + "/" + folderGUID
 localFramesPath = localVideoPath + "/frames"
 videoFile = "/video.mp4"
 ffmpeg_path = os.path.join(os.getcwd(), 'Vid2Pdf', 'ffmpeg', 'ffmpeg.run') # Adjust the path as necessary
+blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+
 audiotext =''
 # client = AzureOpenAI(
 #     api_version="2024-12-01-preview",
@@ -128,7 +130,6 @@ def create_final_smmary_in_blob_fromhtml(final_summary, folder_path, guid_path):
     </html>
     """
     
-    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
     container_client = blob_service_client.get_container_client("videos")
     
     blob_name = f"{folder_path}/{guid_path}/final_summary.html"
@@ -153,7 +154,7 @@ def ExtractAudioUsingFfmpeg(folder, localVideoPath):
         logging.info("Audio extracted successfully.")
         
         # Upload the audio file to the blob storage
-        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        #blob_service_client = BlobServiceClient.from_connection_string(connection_string)
         container_client = blob_service_client.get_container_client("videos")
         blob_client = container_client.get_blob_client(f"{folder}/{folderGUID}/{os.environ.get('Mp3FileName')}")
         
@@ -177,7 +178,7 @@ def ExtractAudioUsingFfmpeg(folder, localVideoPath):
 
 
 def UploadFramesToBlob(folder, localVideoPath):
-    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+    #blob_service_client = BlobServiceClient.from_connection_string(connection_string)
     container_client = blob_service_client.get_container_client("videos")
     logging.info(f"now uploading file from path: {localVideoPath}")
     for filename in os.listdir(localVideoPath):
@@ -188,7 +189,7 @@ def UploadFramesToBlob(folder, localVideoPath):
                 logging.info(f"compressing the file: {file_path} before uploading blob storage")
                 with Image.open(file_path) as img:
                     img_io = io.BytesIO()
-                    img.save(img_io, format='JPEG', quality=75, optimize=True)
+                    img.save(img_io, format='JPEG', quality=60, optimize=True)
                     img_io.seek(0)  # Reset the stream position to the beginning
                     blob_client.upload_blob(img_io, overwrite=True)
 
@@ -233,7 +234,7 @@ def checkPath(path: str) -> bool:
 
 def createFolderInContainer(container_name: str, folder_name: str):
 
-    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+    #blob_service_client = BlobServiceClient.from_connection_string(connection_string)
     container_client = blob_service_client.get_container_client(container_name)
 
     # Create a new blob with a trailing slash to represent a folder
