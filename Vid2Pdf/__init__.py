@@ -20,12 +20,7 @@ videoFile = "/video.mp4"
 ffmpeg_path = os.path.join(os.getcwd(), 'Vid2Pdf', 'ffmpeg', 'ffmpeg.run') # Adjust the path as necessary
 blob_service_client = BlobServiceClient.from_connection_string(connection_string)
 
-audiotext =''
-# client = AzureOpenAI(
-#     api_version="2024-12-01-preview",
-#     azure_endpoint= os.environ.get("AifEndPoint") ,
-#     api_key= os.environ.get("AifApiKey"),
-# )
+
 
 
 def main(inputBlob: func.InputStream):
@@ -45,7 +40,7 @@ def main(inputBlob: func.InputStream):
         logging.info(f"Temporary folder exists at {tmp_folder}.")
         #delete everything in the tmp folder
         logging.info(f"Deleting all files in the temporary folder: {tmp_folder}")
-        DeleteFromTmp(tmp_folder)
+        #DeleteFromTmp(tmp_folder)
 
         #first create localVideoPath
         logging.info(f"creating local video path: {localVideoPath}")
@@ -77,16 +72,17 @@ def main(inputBlob: func.InputStream):
         return
 
 
-    createFolderInContainer("videos", folder)
+    createFolderInContainer("processed", folder)
     #now reading the frames from the tmp folder and uploading them to the container
     logging.info(f"Uploading frames to the folder: {folder}")
     UploadFramesToBlob(folder, localVideoPath)
     logging.info(f"Uploading frames to blob done. Now extracting audio from the video using FFMPEG")
+    DeleteFromTmpGuid(folderGUID)
     ExtractAudioUsingFfmpeg(folder, localVideoPath)
     logging.info(f"Audio extracted and uploaded to blob storage. Now converting JPGs to base64 and calling AI function")
     helper = LLMBlobHelper(
     connection_string = connection_string,
-    container_name="videos",
+    container_name="processed",
     logging=logging)
     # Convert all JPGs to base64
     logging.info(f"Converting all JPGs to base64")
@@ -130,7 +126,7 @@ def create_final_smmary_in_blob_fromhtml(final_summary, folder_path, guid_path):
     </html>
     """
     
-    container_client = blob_service_client.get_container_client("videos")
+    container_client = blob_service_client.get_container_client("processed")
     
     blob_name = f"{folder_path}/{guid_path}/final_summary.html"
     blob_client = container_client.get_blob_client(blob_name)
@@ -155,7 +151,7 @@ def ExtractAudioUsingFfmpeg(folder, localVideoPath):
         
         # Upload the audio file to the blob storage
         #blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-        container_client = blob_service_client.get_container_client("videos")
+        container_client = blob_service_client.get_container_client("processed")
         blob_client = container_client.get_blob_client(f"{folder}/{folderGUID}/{os.environ.get('Mp3FileName')}")
         
         with open(audio_file_path, "rb") as data:
@@ -179,7 +175,7 @@ def ExtractAudioUsingFfmpeg(folder, localVideoPath):
 
 def UploadFramesToBlob(folder, localVideoPath):
     #blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-    container_client = blob_service_client.get_container_client("videos")
+    container_client = blob_service_client.get_container_client("processed")
     logging.info(f"now uploading file from path: {localVideoPath}")
     for filename in os.listdir(localVideoPath):
         if filename.lower().endswith('.jpg'):
@@ -194,19 +190,31 @@ def UploadFramesToBlob(folder, localVideoPath):
                     blob_client.upload_blob(img_io, overwrite=True)
 
 
-def DeleteFromTmp(tmp_folder):
+def DeleteFromTmpGuid(folderGUID):
     import shutil
-    for filename in os.listdir(tmp_folder):
-        file_path = os.path.join(tmp_folder, filename)
+    tmp_folder = os.path.join("/tmp", folderGUID)
+    if os.path.exists(tmp_folder):
         try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-                logging.info(f"Deleted file: {file_path}")
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-                logging.info(f"Deleted directory: {file_path}")
+            shutil.rmtree(tmp_folder)
+            logging.info(f"Deleted temporary folder: {tmp_folder}")
         except Exception as e:
-            logging.error(f"Failed to delete {file_path}. Reason: {e}")
+            logging.error(f"Failed to delete temporary folder {tmp_folder}. Reason: {e}")
+    else:
+        logging.info(f"Temporary folder {tmp_folder} does not exist. No action taken.")
+
+# def DeleteFromTmp(tmp_folder):
+#     import shutil
+#     for filename in os.listdir(tmp_folder):
+#         file_path = os.path.join(tmp_folder, filename)
+#         try:
+#             if os.path.isfile(file_path) or os.path.islink(file_path):
+#                 os.unlink(file_path)
+#                 logging.info(f"Deleted file: {file_path}")
+#             elif os.path.isdir(file_path):
+#                 shutil.rmtree(file_path)
+#                 logging.info(f"Deleted directory: {file_path}")
+#         except Exception as e:
+#             logging.error(f"Failed to delete {file_path}. Reason: {e}")
 
 def ExecuteFfmpeg(ffmpeg_path, localVideoPath):
     logging.info(f"Inside ExecuteFfmpeg to extract KEY frames from the video")

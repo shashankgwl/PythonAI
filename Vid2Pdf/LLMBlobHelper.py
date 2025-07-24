@@ -16,10 +16,16 @@ class LLMBlobHelper:
         self.combined_summary = ""
         self.final_summary = ""
 
-        self.client = AzureOpenAI(
+        self.client1 = AzureOpenAI(
     api_version="2024-12-01-preview",
-    azure_endpoint=os.environ.get("AifEndPoint"),
-    api_key=os.environ.get("AifApiKey"),
+    azure_endpoint=os.environ.get("AifEndPoint1"),
+    api_key=os.environ.get("AifApiKey1"),
+)
+        
+        self.client2 = AzureOpenAI(
+    api_version="2024-12-01-preview",
+    azure_endpoint=os.environ.get("AifEndPoint2"),
+    api_key=os.environ.get("AifApiKey2"),
 )
 
     def list_blobs_under_folder(self, folder_prefix):
@@ -139,6 +145,14 @@ class LLMBlobHelper:
             return final_summary
      
 
+    def generate_random_openai_client(self):
+        """Generate a random OpenAI client instance."""
+        import random
+        if random.choice([True, False]):
+            return self.client1
+        else:
+            return self.client2
+        
     def call_aif(self, base64_images : dict, batchsize=5, mp4_folder=None, guid_file=None):
         audio_text = self.get_audio_txt_blob(mp4_folder, guid_file)
         for guid, images in base64_images.items():
@@ -168,8 +182,12 @@ class LLMBlobHelper:
                             "role": "user",
                             "content": f"Previously you provided {self.previous_summary}. Please continue from that summary and integrate it with the new images."
                         })
+
+                    # Use the random OpenAI client
+                    client = self.generate_random_openai_client()
+                    self.logger.info(f"Using endpoint: {client._azure_endpoint}")
                     
-                    response = self.client.chat.completions.create(
+                    response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=messages,
                     temperature=0.3)
