@@ -118,33 +118,6 @@ class LLMBlobHelper:
         """
         return agent_prompt if not audiotext else agent_prompt.format(audiotext=audiotext)
     
-    def get_final_summary(self, previous_summary=None):
-        """Get the final summary, either from the previous summary or the current one."""
-        prompt = """
-        You are an expert summarizer. You will be provided summaries of previously genereated videos. Your job is to take those previous summaries 
-        and combine them into a single coherent summary.You should integrate the new summary with the previous one, and provide a final summary that is clear, concise, and coherent.
-        """
-        #make call to OpenAI with the previous summary
-        if previous_summary:
-            messages = [
-                {
-                    "role": "system",
-                    "content": prompt
-                },
-                {
-                    "role": "user",
-                    "content": previous_summary
-                }
-            ]
-            response = self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages,
-                temperature=0.3
-            )
-            final_summary = response.choices[0].message.content
-            return final_summary
-     
-
     def generate_random_openai_client(self):
         """Generate a random OpenAI client instance."""
         import random

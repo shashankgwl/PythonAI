@@ -77,7 +77,6 @@ def main(inputBlob: func.InputStream):
     logging.info(f"Uploading frames to the folder: {folder}")
     UploadFramesToBlob(folder, localVideoPath)
     logging.info(f"Uploading frames to blob done. Now extracting audio from the video using FFMPEG")
-    DeleteFromTmpGuid(folderGUID)
     ExtractAudioUsingFfmpeg(folder, localVideoPath)
     logging.info(f"Audio extracted and uploaded to blob storage. Now converting JPGs to base64 and calling AI function")
     helper = LLMBlobHelper(
@@ -90,6 +89,8 @@ def main(inputBlob: func.InputStream):
     logging.info(f"Converted JPGs to base64. Now calling AI function to summarize the images and audio transcription")
     final_summary = helper.call_aif(blob64, batchsize=5, mp4_folder=folder, guid_file=folderGUID)
     logging.info(f"AI function called successfully. Final summary: {final_summary}")
+    DeleteFromTmpGuid(folderGUID)
+
     if final_summary:
         logging.info(f"Final summary: {final_summary}")
         create_final_smmary_in_blob_fromhtml(final_summary, folder, folderGUID)
@@ -147,7 +148,7 @@ def ExtractAudioUsingFfmpeg(folder, localVideoPath):
     
     try:
         os.system(command)
-        logging.info("Audio extracted successfully.")
+        logging.info(f"Audio extracted successfully at local path: {audio_file_path}")
         
         # Upload the audio file to the blob storage
         #blob_service_client = BlobServiceClient.from_connection_string(connection_string)
