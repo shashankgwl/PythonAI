@@ -1,40 +1,79 @@
 # Dataverse MCP Server (Python)
 
-This project provides an MCP server backed by the official Microsoft Dataverse Python SDK (`PowerPlatform-Dataverse-Client`).
+MCP server for Microsoft Dataverse using the official Python SDK (`PowerPlatform-Dataverse-Client`).
 
-## 1. Install
+This server is intentionally bulk-only and exposes tools to create, update, and delete many records at once.
+
+## What this server provides
+
+- `create_multiple`: create multiple rows in a Dataverse table and return created IDs.
+- `update_multiple`: update multiple rows using the same payload.
+- `delete_multiple`: delete multiple rows, using Dataverse bulk delete by default.
+
+## Requirements
+
+- Python `3.10+`
+- Access to a Dataverse environment
+- One of these auth options:
+- Service principal (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`)
+- Azure CLI login (`DATAVERSE_USE_AZURE_CLI=true` and `az login`)
+- Interactive browser sign-in (fallback)
+
+## Installation
+
+From the repo root:
 
 ```bash
 pip install -e .
 ```
 
-## 2. Configure environment variables
+## Configuration
 
-Copy `.env.example` and set values:
+1. Copy `.env.example` to `.env`.
+2. Set values for your environment.
 
-- `DATAVERSE_URL` (required) e.g. `https://yourorg.crm.dynamics.com`
-- For service principal auth: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`
-- Or set `DATAVERSE_USE_AZURE_CLI=true` to use `az login`
-- Otherwise interactive browser auth is used
+Minimum required variable:
 
-## 3. Run server
+- `DATAVERSE_URL` (example: `https://yourorg.crm.dynamics.com`)
+
+Authentication behavior:
+
+1. If `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` are all set, service principal auth is used.
+2. Else if `DATAVERSE_USE_AZURE_CLI=true`, Azure CLI auth is used.
+3. Else interactive browser auth is used.
+
+The server loads `.env` from the current working directory.
+
+## Run
+
+Using installed entrypoint:
 
 ```bash
 dataverse-mcp-server
 ```
 
-Or:
+Or module mode:
 
 ```bash
 python -m dataverse_mcp_server.server
 ```
 
-## Available MCP tools
+Or PowerShell helper script:
 
-- `create_multiple`
-- `update_multiple`
-- `delete_multiple`
+```powershell
+./run.ps1
+```
 
-## Notes
+## Environment variables
 
-- This server is intentionally bulk-only and does not expose unary create/update/delete tools.
+- `DATAVERSE_URL` required Dataverse org URL.
+- `AZURE_TENANT_ID` optional for service principal auth.
+- `AZURE_CLIENT_ID` optional for service principal auth.
+- `AZURE_CLIENT_SECRET` optional for service principal auth.
+- `DATAVERSE_USE_AZURE_CLI` optional (`true/false`), use Azure CLI auth when true.
+- `MCP_TRANSPORT` optional transport (defaults to `stdio`).
+
+## Security
+
+- Do not commit `.env` or real credentials.
+- This repo ignores `.env` files and tracks only `.env.example`.
