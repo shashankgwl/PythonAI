@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
+import sys
 from functools import lru_cache
 from pathlib import Path
 from azure.core.credentials import TokenCredential
@@ -9,6 +11,19 @@ from mcp.server.fastmcp import FastMCP
 from dotenv import load_dotenv
 from PowerPlatform.Dataverse.client import DataverseClient
 from starlette.responses import JSONResponse
+
+
+def _configure_logging() -> logging.Logger:
+    level_name = (_env("LOG_LEVEL", "INFO") or "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        stream=sys.stdout,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
+    logger = logging.getLogger("dataverse_mcp_server")
+    logger.info("Logging configured with level=%s", logging.getLevelName(level))
+    return logger
 
 
 # Load environment variables from a .env file. Search in CWD and this file's ancestor dirs.
@@ -26,6 +41,7 @@ def _find_and_load_dotenv() -> None:
 
 
 _find_and_load_dotenv()
+logger = _configure_logging()
 
 
 def _env(name: str, default: str | None = None) -> str | None:
@@ -78,11 +94,14 @@ def _build_credential() -> TokenCredential:
     client_secret = _env("AZURE_CLIENT_SECRET")
 
     if tenant_id and client_id and client_secret:
+        logger.info("Using ClientSecretCredential for Dataverse authentication")
         return ClientSecretCredential(tenant_id=tenant_id, client_id=client_id, client_secret=client_secret)
 
     if (_env("DATAVERSE_USE_AZURE_CLI", "false") or "").lower() in {"1", "true", "yes"}:
+        logger.info("Using AzureCliCredential for Dataverse authentication")
         return AzureCliCredential()
 
+    logger.error("Dataverse authentication configuration is incomplete")
     raise ValueError(
         "Provide AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET, "
         "or set DATAVERSE_USE_AZURE_CLI=true."
@@ -93,12 +112,15 @@ def _build_credential() -> TokenCredential:
 def _client() -> DataverseClient:
     url = _env("DATAVERSE_URL")
     if not url:
+        logger.error("DATAVERSE_URL is not configured")
         raise ValueError("DATAVERSE_URL is required, e.g. https://orgeaf9224a.crm.dynamics.com/")
 
+    logger.info("Creating DataverseClient for url=%s", url)
     return DataverseClient(url, _build_credential())
 
 @mcp.custom_route("/health", methods=["GET"])
 def health_check(request) -> JSONResponse:
+    logger.info("Health check requested")
     return JSONResponse({"status": "ok", "connectedto" : _env("DATAVERSE_URL")})
    
 
@@ -110,8 +132,10 @@ def create_multiple(
     records: list[dict[str, object]],
 ) -> list[str]:
     """Create multiple records and return created IDs."""
-    
-    return _client().create(table, records)
+    logger.info("create_multiple started table=%s records=%d", table, len(records))
+    created_ids = _client().create(table, records)
+    logger.info("create_multiple completed table=%s created=%d", table, len(created_ids))
+    return created_ids
 
 @mcp.tool(name="update_multiple",
           description="Update multiple records in a Dataverse table by applying the same payload to each ID." \
@@ -122,10 +146,9 @@ def update_multiple(
     data: dict[str, object],
 ) -> str:
     """Update multiple records by applying the same payload to each ID."""
-    
+    logger.info("update_multiple started table=%s records=%d", table, len(record_ids))
     _client().update(table, record_ids, data)
-
-    
+    logger.info("update_multiple completed table=%s updated=%d", table, len(record_ids))
     return f"Total number of records updated: {len(record_ids)}"
 
 @mcp.tool(name="create_table",
@@ -133,7 +156,9 @@ def update_multiple(
           "The input is the table name and a dictionary of column names and types, and the output is a confirmation message.")
 def create_table(table:str, columns : dict[str,any]) -> str:
     """Create a new Dataverse table with specified columns."""
+    logger.info("create_table started table=%s columns=%d", table, len(columns))
     _client().tables.create(table=table,columns=columns)
+    logger.info("create_table completed table=%s", table)
     return f"Table '{table}' created with columns: {', '.join(columns.keys())}"
 
 @mcp.tool(name="delete_multiple",
@@ -144,12 +169,26 @@ def delete_multiple(
     use_bulk_delete: bool = True,
 ) -> str:
     """Delete multiple records, defaulting to Dataverse bulk delete."""
+    logger.info(
+        "delete_multiple started table=%s records=%d use_bulk_delete=%s",
+        table,
+        len(record_ids),
+        use_bulk_delete,
+    )
     _client().delete(table, record_ids, use_bulk_delete=use_bulk_delete)
+    logger.info("delete_multiple completed table=%s deleted=%d", table, len(record_ids))
     return f"Total number of records deleted: {len(record_ids)}"
 
 
 def main() -> None:
     transport = _env("MCP_TRANSPORT", "streamable-http") or "streamable-http"
+    logger.info(
+        "Starting Dataverse MCP server host=%s port=%s transport=%s path=%s",
+        _server_host(),
+        _server_port(),
+        transport,
+        _streamable_path(),
+    )
     mcp.run(transport=transport)
 
 
