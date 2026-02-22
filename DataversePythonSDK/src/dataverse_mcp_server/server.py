@@ -14,7 +14,7 @@ from starlette.responses import JSONResponse
 
 
 def _configure_logging() -> logging.Logger:
-    level_name = (_env("LOG_LEVEL", "INFO") or "INFO").upper()
+    level_name = (os.getenv("LOG_LEVEL", "INFO") or "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(
         level=level,
