@@ -128,6 +128,13 @@ def update_multiple(
     
     return f"Total number of records updated: {len(record_ids)}"
 
+@mcp.tool(name="create_table",
+          description="Create a new Dataverse table with specified columns. " \
+          "The input is the table name and a dictionary of column names and types, and the output is a confirmation message.")
+def create_table(table:str, columns : dict[str,any]) -> str:
+    """Create a new Dataverse table with specified columns."""
+    _client().tables.create(table=table,columns=columns)
+    return f"Table '{table}' created with columns: {', '.join(columns.keys())}"
 
 @mcp.tool(name="delete_multiple",
           description="Delete multiple records in a Dataverse table by ID, defaulting to bulk delete for efficiency.")
