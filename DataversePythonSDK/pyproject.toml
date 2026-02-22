@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dataverse-mcp-server"
 version = "0.1.0"
-description = "MCP server for Microsoft Dataverse using the official Python SDK"
+description = "Bulk operations MCP server for Microsoft Dataverse using the official Python SDK"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

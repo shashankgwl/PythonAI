@@ -93,7 +93,7 @@ def _build_credential() -> TokenCredential:
 def _client() -> DataverseClient:
     url = _env("DATAVERSE_URL")
     if not url:
-        raise ValueError("DATAVERSE_URL is required, e.g. https://yourorg.crm.dynamics.com")
+        raise ValueError("DATAVERSE_URL is required, e.g. https://orgeaf9224a.crm.dynamics.com/")
 
     return DataverseClient(url, _build_credential())
 
