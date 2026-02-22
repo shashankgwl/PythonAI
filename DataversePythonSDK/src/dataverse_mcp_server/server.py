@@ -157,7 +157,7 @@ def update_multiple(
 def create_table(table:str, columns : dict[str,any]) -> str:
     """Create a new Dataverse table with specified columns."""
     logger.info("create_table started table=%s columns=%d", table, len(columns))
-    _client().tables.create(table=table,columns=columns)
+    _client().create_table(table, columns)
     logger.info("create_table completed table=%s", table)
     return f"Table '{table}' created with columns: {', '.join(columns.keys())}"
 
