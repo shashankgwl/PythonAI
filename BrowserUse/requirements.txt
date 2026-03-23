@@ -1,0 +1,6 @@
+browser-use
+mcp
+jinja2
+python-dotenv
+langchain-openai
+playwright

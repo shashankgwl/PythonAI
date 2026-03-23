@@ -1,0 +1,16 @@
+You are starting after user login is complete and Dataverse app is fully loaded.
+Execute these steps in order and do not finish early.
+
+1. Ensure page is fully loaded.
+2. Open the side panel (site map) if collapsed.
+3. Take screenshot: side-panel-open.
+4. Click Contacts in the left navigation.
+5. Wait until Contacts grid/page is visible.
+6. Take screenshot: contacts-page.
+7. Click New.
+8. Wait until New Contact form is visible.
+9. Fill the contact form, fill firstname as Shashank, lastname as Bhide
+10 verify if the names are filled, then proceed to next step
+11. Click save, wait for the page to load
+12. Take screenshot.
+12. exit

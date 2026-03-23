@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/playwright/mcp
+
+USER root
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       xvfb x11vnc fluxbox novnc websockify \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV DISPLAY=:99
+ENV SCREEN_WIDTH=1920
+ENV SCREEN_HEIGHT=1080
+ENV SCREEN_DEPTH=24
+ENV MCP_BROWSER=chromium
+
+COPY docker/start-playwright-vnc.sh /usr/local/bin/start-playwright-vnc.sh
+RUN chmod +x /usr/local/bin/start-playwright-vnc.sh
+
+EXPOSE 8931 5900 6080
+
+ENTRYPOINT ["/usr/local/bin/start-playwright-vnc.sh"]

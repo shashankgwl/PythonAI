@@ -1,0 +1,55 @@
+services:
+  playwright-mcp:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.playwright-vnc
+    container_name: playwright-mcp
+    user: "0:0"
+    environment:
+      MCP_BROWSER: ${MCP_BROWSER:-chromium}
+      MCP_HEADLESS: ${MCP_HEADLESS:-false}
+    ports:
+      - "8931:8931"
+      - "6080:6080"
+      - "5900:5900"
+    volumes:
+      - ./reports:/app/reports
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: website-automation-runner
+    network_mode: "service:playwright-mcp"
+    depends_on:
+      - playwright-mcp
+    environment:
+      MCP_URL: http://localhost:8931/mcp
+      SCENARIO_FILE: /app/scenarios/default.json
+      PROMPT_FILE: /app/scenarios/prompt.txt
+      MFA_CODE_FILE: /app/scenarios/mfa_code.txt
+      MFA_TIMEOUT_SECONDS: "180"
+      REPORT_DIR: /app/reports
+      OPENAI_MODEL: gpt-4o-mini
+      TEST_TIMEOUT_SECONDS: ${TEST_TIMEOUT_SECONDS:-300}
+      PAGE_SETTLE_SECONDS: "5"
+      MCP_AGENT_MAX_STEPS: ${MCP_AGENT_MAX_STEPS:-60}
+      MANUAL_LOGIN_HANDOFF: ${MANUAL_LOGIN_HANDOFF:-true}
+      MANUAL_LOGIN_TIMEOUT_SECONDS: ${MANUAL_LOGIN_TIMEOUT_SECONDS:-900}
+      PLANNER_TRACE_ENABLED: ${PLANNER_TRACE_ENABLED:-true}
+      PLANNER_TRACE_FILE: ${PLANNER_TRACE_FILE:-/app/reports/planner_trace.jsonl}
+      HEADLESS: "true"
+      RUN_BROWSER_USE: "false"
+      TEST_USERNAME: ${TEST_USERNAME:-}
+      TEST_PASSWORD: ${TEST_PASSWORD:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      BROWSER_USE_API_KEY: ${BROWSER_USE_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_DEPLOYMENT_NAME: ${AZURE_OPENAI_DEPLOYMENT_NAME:-}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
+    volumes:
+      - ./reports:/app/reports
+      - ./scenarios:/app/scenarios:ro
+      - ./templates:/app/templates:ro
+    command: ["python", "-m", "src.run_tests"]

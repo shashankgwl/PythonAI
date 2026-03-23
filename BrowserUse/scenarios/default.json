@@ -1,0 +1,11 @@
+{
+  "scenarios": [
+    {
+      "name": "Dataverse Login",
+      "url": "https://evolve-dev.crm11.dynamics.com/main.aspx?forceUCI=1&appid=b3b5b52e-0311-f011-998a-002248c5d9aa",
+      "expected_text": "Microsoft Dynamics 365",
+      "requires_mfa": true,
+      "mfa_timeout_seconds": 300
+    }
+  ]
+}

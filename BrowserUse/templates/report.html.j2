@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Automation Report</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --ok: #16794b;
+      --bad: #b02a2a;
+      --muted: #516177;
+      --ink: #1f2a3a;
+      --line: #dbe3ee;
+      --accent: #0e7490;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: radial-gradient(circle at 15% 15%, #e8f6ff, transparent 45%), var(--bg);
+      color: var(--ink);
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .hero {
+      background: linear-gradient(120deg, #0e7490, #0b4f66);
+      color: #fff;
+      padding: 18px;
+      border-radius: 14px;
+      box-shadow: 0 10px 20px rgba(14, 116, 144, 0.18);
+    }
+
+    .meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: 14px;
+      opacity: 0.95;
+    }
+
+    .result {
+      margin-top: 14px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: baseline;
+    }
+
+    .status {
+      padding: 3px 10px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .status.passed { background: var(--ok); }
+    .status.failed { background: var(--bad); }
+    .muted { color: var(--muted); }
+
+    pre {
+      white-space: pre-wrap;
+      background: #f6f9fd;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Website Automation Test Report</h1>
+      <div class="meta">
+        <div>Total: {{ summary.total }}</div>
+        <div>Passed: {{ summary.passed }}</div>
+        <div>Failed: {{ summary.failed }}</div>
+        <div>Success Rate: {{ summary.success_rate }}%</div>
+        <div>Generated: {{ summary.generated_at }}</div>
+      </div>
+    </div>
+
+    {% for result in summary.results %}
+    <div class="result">
+      <div class="row">
+        <h3>{{ result.name }}</h3>
+        <span class="status {{ result.overall_status }}">{{ result.overall_status }}</span>
+      </div>
+
+      <p class="muted">URL: {{ result.url }}</p>
+      <p><strong>Expected Text:</strong> {{ result.expected_text }}</p>
+      <p><strong>Prompt:</strong> {{ result.prompt }}</p>
+      <p><strong>Total Duration:</strong> {{ "%.2f"|format(result.duration_seconds) }}s</p>
+
+      <h4>MCP Validation</h4>
+      <p><strong>Status:</strong> {{ result.mcp.status }}</p>
+      <p><strong>Tool Count:</strong> {{ result.mcp.tool_count }}</p>
+      <p><strong>Details:</strong> {{ result.mcp.details }}</p>
+      <pre>{{ result.mcp.snapshot_excerpt }}</pre>
+
+      <h4>browser-use Summary</h4>
+      <p><strong>Status:</strong> {{ result.browser_use.status }}</p>
+      <p>{{ result.browser_use.summary }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</body>
+</html>
