@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "contact-center-mcp": {
+      "type": "http",
+      "url": "https://orgeaf9224a.crm.dynamics.com/api/mcp"
+    }
+  }
+}
