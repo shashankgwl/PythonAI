@@ -6,39 +6,28 @@ param(
     [string]$TableLogicalName,
 
     [Parameter(Mandatory = $true)]
-    [ValidateSet('mainForm','mainGrid','subGrid','associatedView')]
-    [string]$Location,
+    [string]$ButtonLabel,
 
     [Parameter(Mandatory = $true)]
-    [string]$ButtonLabel,
+    [string]$JavaScriptLibraryWebResourceName,
+
+    [Parameter(Mandatory = $true)]
+    [string]$JavaScriptFunctionName,
 
     [Parameter(Mandatory = $false)]
     [string]$PublisherPrefix = 'new',
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet('none','javascript')]
-    [string]$ActionType = 'none',
-
-    [Parameter(Mandatory = $false)]
-    [string]$WebResourceName,
-
-    [Parameter(Mandatory = $false)]
-    [string]$FunctionName,
-
-    [Parameter(Mandatory = $false)]
     [int]$Sequence = 100,
 
     [Parameter(Mandatory = $false)]
-    [string]$ContainerLocation,
+    [string]$Image16by16WebResourceName,
 
     [Parameter(Mandatory = $false)]
-    [bool]$AddRefreshDisplayRule = $true,
+    [string]$Image32by32WebResourceName,
 
     [Parameter(Mandatory = $false)]
-    [string]$NoOpWebResourceName,
-
-    [Parameter(Mandatory = $false)]
-    [string]$NoOpFunctionName = 'RibbonNoop.click'
+    [bool]$PassPrimaryControl = $true
 )
 
 Set-StrictMode -Version Latest
@@ -77,9 +66,11 @@ function Get-OrCreateChildElement([System.Xml.XmlNode]$Parent, [string]$Name) {
 }
 
 function Remove-NodeById([System.Xml.XmlNode]$Root, [string]$XPath, [string]$Id) {
-    $existing = $Root.SelectSingleNode($XPath.Replace('{id}', $Id))
-    if ($existing -and $existing.ParentNode) {
-        [void]$existing.ParentNode.RemoveChild($existing)
+    $nodes = $Root.SelectNodes($XPath.Replace('{id}', $Id))
+    foreach ($node in $nodes) {
+        if ($node.ParentNode) {
+            [void]$node.ParentNode.RemoveChild($node)
+        }
     }
 }
 
@@ -97,6 +88,14 @@ function New-Slug([string]$Text) {
     return $value
 }
 
+function ConvertTo-WebResourceDirective([string]$Name) {
+    if ([string]::IsNullOrWhiteSpace($Name)) { return $null }
+    if ($Name.StartsWith('$webresource:', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $Name
+    }
+    return '$webresource:' + $Name
+}
+
 function Resolve-EntityToken([string]$RibbonPath, [string]$FallbackTableLogicalName) {
     $folder = Split-Path -Parent $RibbonPath
     $entityXmlPath = Join-Path $folder 'Entity.xml'
@@ -104,100 +103,49 @@ function Resolve-EntityToken([string]$RibbonPath, [string]$FallbackTableLogicalN
     if (Test-Path $entityXmlPath) {
         try {
             [xml]$entityXml = Get-Content -Path $entityXmlPath -Raw -Encoding UTF8
-
-            $schemaName = $null
             $entityNode = $entityXml.SelectSingleNode('/Entity/EntityInfo/entity')
             if ($entityNode -and $entityNode.Attributes['Name']) {
-                $schemaName = $entityNode.Attributes['Name'].Value
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($schemaName)) {
-                $resolved = $schemaName.ToLowerInvariant()
-                if ($FallbackTableLogicalName.ToLowerInvariant() -ne $resolved) {
-                    Write-Warning "TableLogicalName '$FallbackTableLogicalName' does not match sibling Entity.xml schema-derived token '$resolved'. Using '$resolved' for ribbon container resolution."
-                }
-                return $resolved
+                return $entityNode.Attributes['Name'].Value.ToLowerInvariant()
             }
         }
         catch {
-            Write-Warning "Unable to read sibling Entity.xml at '$entityXmlPath'. Falling back to TableLogicalName '$FallbackTableLogicalName'. Error: $($_.Exception.Message)"
+            Write-Warning "Could not parse Entity.xml at '$entityXmlPath'. Falling back to TableLogicalName."
         }
     }
 
     return $FallbackTableLogicalName.ToLowerInvariant()
 }
 
-function Add-JavaScriptAction([
-    System.Xml.XmlDocument]$Document,
-    [System.Xml.XmlElement]$ActionsElement,
-    [string]$LibraryName,
-    [string]$JsFunctionName
-) {
-    $js = $Document.CreateElement('JavaScriptFunction')
-
-    $libAttr = $Document.CreateAttribute('Library')
-    $libAttr.Value = '$webresource:' + $LibraryName
-    [void]$js.Attributes.Append($libAttr)
-
-    $fnAttr = $Document.CreateAttribute('FunctionName')
-    $fnAttr.Value = $JsFunctionName
-    [void]$js.Attributes.Append($fnAttr)
-
-    $crmParam = $Document.CreateElement('CrmParameter')
-    $valueAttr = $Document.CreateAttribute('Value')
-    $valueAttr.Value = 'PrimaryControl'
-    [void]$crmParam.Attributes.Append($valueAttr)
-    [void]$js.AppendChild($crmParam)
-
-    [void]$ActionsElement.AppendChild($js)
-}
-
 $tableToken = Resolve-EntityToken -RibbonPath $RibbonDiffPath -FallbackTableLogicalName $TableLogicalName
+$containerLocation = "Mscrm.Form.$tableToken.MainTab.Actions.Controls._children"
 
-if (-not $ContainerLocation) {
-    switch ($Location) {
-        'mainForm'       { $ContainerLocation = "Mscrm.Form.$tableToken.MainTab.Actions.Controls._children" }
-        'mainGrid'       { $ContainerLocation = "Mscrm.HomepageGrid.$tableToken.MainTab.Management.Controls._children" }
-        'subGrid'        { $ContainerLocation = "Mscrm.SubGrid.$tableToken.MainTab.Actions.Controls._children" }
-        'associatedView' { $ContainerLocation = "Mscrm.AssociatedMenu.$tableToken.MainTab.Actions.Controls._children" }
-        default          { throw "Unsupported location '$Location'." }
-    }
+$image16 = ConvertTo-WebResourceDirective $Image16by16WebResourceName
+$image32 = ConvertTo-WebResourceDirective $Image32by32WebResourceName
+$javaScriptLibrary = ConvertTo-WebResourceDirective $JavaScriptLibraryWebResourceName
+
+if (-not $image16 -and $image32) { $image16 = $image32 }
+if (-not $image32 -and $image16) { $image32 = $image16 }
+if (-not $javaScriptLibrary) {
+    throw 'JavaScriptLibraryWebResourceName must resolve to a web resource directive.'
 }
-
-$effectiveActionType = $ActionType
-$effectiveWebResourceName = $WebResourceName
-$effectiveFunctionName = $FunctionName
-
-if ($ActionType -eq 'javascript') {
-    if ([string]::IsNullOrWhiteSpace($WebResourceName)) { throw 'WebResourceName is required when ActionType=javascript.' }
-    if ([string]::IsNullOrWhiteSpace($FunctionName))    { throw 'FunctionName is required when ActionType=javascript.' }
-}
-elseif ($ActionType -eq 'none') {
-    if (-not [string]::IsNullOrWhiteSpace($NoOpWebResourceName)) {
-        $effectiveActionType = 'javascript'
-        $effectiveWebResourceName = $NoOpWebResourceName
-        $effectiveFunctionName = $NoOpFunctionName
-        Write-Warning "ActionType 'none' has been upgraded to a deterministic no-op JavaScript binding using web resource '$effectiveWebResourceName' and function '$effectiveFunctionName'. Make sure this web resource exists in the target solution."
-    }
-    else {
-        Write-Warning "ActionType 'none' will produce an empty <Actions /> block. In Unified Interface, placeholder buttons with no action may not surface reliably. To force a deterministic visible no-op command, pass -NoOpWebResourceName and optionally -NoOpFunctionName."
-    }
+if ([string]::IsNullOrWhiteSpace($JavaScriptFunctionName)) {
+    throw 'JavaScriptFunctionName cannot be empty.'
 }
 
 $idPrefix = ConvertTo-IdPrefix $PublisherPrefix
 $slug = New-Slug $ButtonLabel
-$idBase = "$idPrefix.$tableToken.$Location.$slug"
+$idBase = "$idPrefix.$tableToken.mainForm.$slug"
 $customActionId = "$idBase.CustomAction"
 $commandId = "$idBase.Command"
 $buttonId = "$idBase.Button"
-$displayRuleId = "$idBase.Refresh.DisplayRule"
 
 $doc = if (Test-Path $RibbonDiffPath) {
     $x = New-Object System.Xml.XmlDocument
     $x.PreserveWhitespace = $true
     $x.Load($RibbonDiffPath)
     $x
-} else {
+}
+else {
     New-XmlDocument
 }
 
@@ -217,85 +165,49 @@ if (-not $ribbonTemplates.Attributes['Id']) {
 $commandDefinitions = Get-OrCreateChildElement -Parent $root -Name 'CommandDefinitions'
 $ruleDefinitions = Get-OrCreateChildElement -Parent $root -Name 'RuleDefinitions'
 [void](Get-OrCreateChildElement -Parent $ruleDefinitions -Name 'TabDisplayRules')
-$ruleDisplayRules = Get-OrCreateChildElement -Parent $ruleDefinitions -Name 'DisplayRules'
+[void](Get-OrCreateChildElement -Parent $ruleDefinitions -Name 'DisplayRules')
 [void](Get-OrCreateChildElement -Parent $ruleDefinitions -Name 'EnableRules')
 [void](Get-OrCreateChildElement -Parent $root -Name 'LocLabels')
 
-# Remove previous version of the same generated IDs so the script is idempotent.
 Remove-NodeById -Root $root -XPath "./CustomActions/CustomAction[@Id='{id}']" -Id $customActionId
 Remove-NodeById -Root $root -XPath "./CommandDefinitions/CommandDefinition[@Id='{id}']" -Id $commandId
-if ($AddRefreshDisplayRule) {
-    Remove-NodeById -Root $root -XPath "./RuleDefinitions/DisplayRules/DisplayRule[@Id='{id}']" -Id $displayRuleId
-}
 
 $customAction = $doc.CreateElement('CustomAction')
-foreach ($pair in @{
-    'Id' = $customActionId
-    'Location' = $ContainerLocation
-    'Sequence' = [string]$Sequence
-}.GetEnumerator()) {
-    $a = $doc.CreateAttribute($pair.Key)
-    $a.Value = $pair.Value
-    [void]$customAction.Attributes.Append($a)
-}
+$customAction.SetAttribute('Id', $customActionId)
+$customAction.SetAttribute('Location', $containerLocation)
+$customAction.SetAttribute('Sequence', [string]$Sequence)
 
 $commandUiDefinition = $doc.CreateElement('CommandUIDefinition')
 $button = $doc.CreateElement('Button')
-foreach ($pair in @{
-    'Id' = $buttonId
-    'Command' = $commandId
-    'LabelText' = $ButtonLabel
-    'ToolTipTitle' = $ButtonLabel
-    'ToolTipDescription' = $ButtonLabel
-    'Sequence' = [string]$Sequence
-    'TemplateAlias' = 'o1'
-}.GetEnumerator()) {
-    $a = $doc.CreateAttribute($pair.Key)
-    $a.Value = $pair.Value
-    [void]$button.Attributes.Append($a)
-}
+$button.SetAttribute('Id', $buttonId)
+$button.SetAttribute('Command', $commandId)
+$button.SetAttribute('LabelText', $ButtonLabel)
+$button.SetAttribute('ToolTipTitle', $ButtonLabel)
+$button.SetAttribute('ToolTipDescription', $ButtonLabel)
+$button.SetAttribute('Sequence', [string]$Sequence)
+$button.SetAttribute('TemplateAlias', 'o1')
+
+if ($image16) { $button.SetAttribute('Image16by16', $image16) }
+if ($image32) { $button.SetAttribute('Image32by32', $image32) }
+
 [void]$commandUiDefinition.AppendChild($button)
 [void]$customAction.AppendChild($commandUiDefinition)
 [void]$customActions.AppendChild($customAction)
 
-if ($AddRefreshDisplayRule) {
-    $displayRule = $doc.CreateElement('DisplayRule')
-    $idAttr = $doc.CreateAttribute('Id')
-    $idAttr.Value = $displayRuleId
-    [void]$displayRule.Attributes.Append($idAttr)
-
-    $clientTypeRule = $doc.CreateElement('CommandClientTypeRule')
-    $typeAttr = $doc.CreateAttribute('Type')
-    $typeAttr.Value = 'Refresh'
-    [void]$clientTypeRule.Attributes.Append($typeAttr)
-    [void]$displayRule.AppendChild($clientTypeRule)
-
-    [void]$ruleDisplayRules.AppendChild($displayRule)
-}
-
 $commandDefinition = $doc.CreateElement('CommandDefinition')
-$a = $doc.CreateAttribute('Id')
-$a.Value = $commandId
-[void]$commandDefinition.Attributes.Append($a)
+$commandDefinition.SetAttribute('Id', $commandId)
+[void]$commandDefinition.AppendChild($doc.CreateElement('EnableRules'))
 
-$enableRules = $doc.CreateElement('EnableRules')
-$displayRules = $doc.CreateElement('DisplayRules')
 $actions = $doc.CreateElement('Actions')
-
-if ($AddRefreshDisplayRule) {
-    $displayRuleRef = $doc.CreateElement('DisplayRule')
-    $displayRuleRefId = $doc.CreateAttribute('Id')
-    $displayRuleRefId.Value = $displayRuleId
-    [void]$displayRuleRef.Attributes.Append($displayRuleRefId)
-    [void]$displayRules.AppendChild($displayRuleRef)
+$javaScriptFunction = $doc.CreateElement('JavaScriptFunction')
+$javaScriptFunction.SetAttribute('Library', $javaScriptLibrary)
+$javaScriptFunction.SetAttribute('FunctionName', $JavaScriptFunctionName)
+if ($PassPrimaryControl) {
+    $crmParameter = $doc.CreateElement('CrmParameter')
+    $crmParameter.SetAttribute('Value', 'PrimaryControl')
+    [void]$javaScriptFunction.AppendChild($crmParameter)
 }
-
-if ($effectiveActionType -eq 'javascript') {
-    Add-JavaScriptAction -Document $doc -ActionsElement $actions -LibraryName $effectiveWebResourceName -JsFunctionName $effectiveFunctionName
-}
-
-[void]$commandDefinition.AppendChild($enableRules)
-[void]$commandDefinition.AppendChild($displayRules)
+[void]$actions.AppendChild($javaScriptFunction)
 [void]$commandDefinition.AppendChild($actions)
 [void]$commandDefinitions.AppendChild($commandDefinition)
 
@@ -310,19 +222,19 @@ $writer = [System.Xml.XmlWriter]::Create($RibbonDiffPath, $settings)
 $doc.Save($writer)
 $writer.Dispose()
 
-Write-Host 'Patched RibbonDiffXml successfully.'
+Write-Host 'Patched RibbonDiffXml for entity main form command bar.'
 Write-Host "  File: $RibbonDiffPath"
-Write-Host "  Resolved table token: $tableToken"
-Write-Host "  CustomAction Location: $ContainerLocation"
+Write-Host "  Table token: $tableToken"
+Write-Host "  Container: $containerLocation"
 Write-Host "  CustomAction Id: $customActionId"
 Write-Host "  Button Id: $buttonId"
 Write-Host "  Command Id: $commandId"
-if ($AddRefreshDisplayRule) {
-    Write-Host "  DisplayRule Id: $displayRuleId (CommandClientTypeRule=Refresh)"
-}
-if ($effectiveActionType -eq 'javascript') {
-    Write-Host "  Action binding: $effectiveWebResourceName :: $effectiveFunctionName"
+Write-Host "  JavaScript library: $javaScriptLibrary"
+Write-Host "  JavaScript function: $JavaScriptFunctionName"
+Write-Host "  Pass PrimaryControl: $PassPrimaryControl"
+if ($image16 -or $image32) {
+    Write-Host "  Button icons: 16=$image16 ; 32=$image32"
 }
 else {
-    Write-Host '  Action binding: <empty actions>'
+    Write-Host '  Button icons: <none>'
 }

@@ -1,0 +1,8 @@
+.venv/
+.tmp/
+.env
+.env.local
+.runtime.config.azure-openai.yaml
+__pycache__/
+*.pyc
+session_data/

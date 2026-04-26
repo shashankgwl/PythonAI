@@ -1,32 +1,33 @@
 ---
-name: dv-formbench
-description: Add or update a Dataverse command bar button for an entity main form only by exporting an unmanaged solution, patching RibbonDiff.xml with a fixed PowerShell script, and importing it back.
+name: dv-ribbonbench
+description: Add or update a Dataverse command bar button for an entity form, main grid, or subgrid by exporting an unmanaged solution, patching RibbonDiff.xml with a fixed PowerShell script, and importing it back.
 ---
 
-## Dataverse RibbonWorks (Entity Main Form Only)
+## Dataverse RibbonWorks (Entity Form, Main Grid, or Subgrid)
 
 This skill is intentionally narrow:
-- Target: entity `mainForm` command bar only.
+- Target: entity `Form`, `Main Grid`, or `Subgrid` command bar only, with a JavaScript function action on any supported surface.
 - Mutation engine: `./scripts/Patch-RibbonDiff.ps1` only.
-- No main grid, subgrid, associated view, hide, or override scenarios.
+- No associated view, hide, or override scenarios.
 
 ### Required user flow
 1. Ask user to select environment.
 2. Ensure authentication is valid.
-3. Ask for button details one by one (NOT all questions at once):
+3. Ask whether the target surface is `Form`, `Main Grid`, or `Subgrid`.
+4. Ask for button details one by one (NOT all questions at once). The JavaScript library and function questions apply to all supported surfaces:
    - Button label.
    - JavaScript library web resource name.
    - JavaScript function name.
-   - Icon choice (must ask every run): give following choices, `ignore`, `existing web resource`, or `local SVG file path`.
+   - Icon choice (must ask every run): give following choices, `ignore`, `existing web resource`.
    - If icon = existing web resource: ask for one or two image web resource names.
-   - If icon = local SVG file path: ask for SVG path and target image web resource name(s).
-4. Show a simple plan and ask for approval.
-5. Execute with PAC CLI: export -> unpack -> patch with PowerShell -> pack -> import -> publish.
+5. Show a simple plan and ask for approval.
+6. Execute with PAC CLI: export -> unpack -> patch with PowerShell -> pack -> import -> publish.
 
 ### Minimal inputs
 - Environment.
 - Unmanaged solution name.
 - Table logical name.
+- Surface: `Form`, `Main Grid`, or `Subgrid`.
 - Button label.
 - JavaScript library web resource name.
 - JavaScript function name.
@@ -45,7 +46,10 @@ Plan:
 - Environment: <env>
 - Solution: <solution>
 - Table: <table>
-- Scope: entity mainForm command bar only
+- Surface: <Form/Main Grid/Subgrid>
+- Temp workspace: $env:TEMP\dv-formbench\<guid>
+- Export path: $env:TEMP\dv-formbench\<guid>\<solution>.unmanaged.zip
+- Scope: entity <Form/Main Grid/Subgrid> command bar only
 - Button label: <label>
 - JavaScript library: <webresource name>
 - JavaScript function: <function name>
@@ -57,7 +61,7 @@ Plan:
   - Export unmanaged solution
   - Unpack solution
   - Locate `Entities/*/RibbonDiff.xml` for the table
-  - Run `./scripts/Patch-RibbonDiff.ps1`
+  - Run `./scripts/Patch-RibbonDiff.ps1` with the selected surface
   - Pack solution
   - Import solution
   - Publish customizations
@@ -67,8 +71,9 @@ Plan:
 - `pac auth who`
 - `pac env who`
 - `pac solution list`
-- `pac solution export --name "<solution>" --path "$env:TEMP\<solution>.unmanaged.zip"`
-- `pac solution unpack --zipfile "$env:TEMP\<solution>.unmanaged.zip" --folder "$env:TEMP\unpacked\<solution>" --packagetype Unmanaged`
+- Create temp workspace: `$tempRoot = Join-Path $env:TEMP ("dv-formbench\" + [guid]::NewGuid().ToString())`
+- `pac solution export --name "<solution>" --path "$tempRoot\<solution>.unmanaged.zip"`
+- `pac solution unpack --zipfile "$tempRoot\<solution>.unmanaged.zip" --folder "$tempRoot\unpacked\<solution>" --packagetype Unmanaged`
 - Identify target file: `Entities/<entity folder>/RibbonDiff.xml`
 - Run patcher:
 
@@ -76,6 +81,7 @@ Plan:
 pwsh -File ./scripts/Patch-RibbonDiff.ps1 \
   -RibbonDiffPath "<path-to-RibbonDiff.xml>" \
   -TableLogicalName "<table>" \
+  -CommandBarSurface "<Form-or-MainGrid-or-Subgrid>" \
   -ButtonLabel "<label>" \
   -JavaScriptLibraryWebResourceName "<js-webresource-name>" \
   -JavaScriptFunctionName "<function-name>" \
@@ -84,21 +90,25 @@ pwsh -File ./scripts/Patch-RibbonDiff.ps1 \
   [-Image32by32WebResourceName "<image-webresource-name>"]
 ```
 
-- `pac solution pack --zipfile "$env:TEMP\<solution>.patched.zip" --folder "$env:TEMP\unpacked\<solution>" --packagetype Unmanaged`
-- `pac solution import --path "$env:TEMP\<solution>.patched.zip" --stage-and-upgrade`
+- `pac solution pack --zipfile "$tempRoot\<solution>.patched.zip" --folder "$tempRoot\unpacked\<solution>" --packagetype Unmanaged`
+- `pac solution import --path "$tempRoot\<solution>.patched.zip" --stage-and-upgrade`
 - `pac solution publish`
 
 ### Verification
 - Target `RibbonDiff.xml` was updated.
 - `CustomAction`, `Button`, and `CommandDefinition` IDs exist once.
 - `CommandDefinition/Actions/JavaScriptFunction` exists once and points to the requested web resource and function.
-- Location uses `Mscrm.Form.<table>.MainTab.Actions.Controls._children`.
+- The selected surface, whether `Form`, `Main Grid`, or `Subgrid`, uses the requested JavaScript library and function.
+- If surface = `Form`, location uses `Mscrm.Form.<table>.MainTab.Actions.Controls._children`.
+- If surface = `Main Grid`, location uses `Mscrm.HomepageGrid.<table>.MainTab.Management.Controls._children`.
+- If surface = `Subgrid`, location uses `Mscrm.SubGrid.<table>.MainTab.Management.Controls._children`.
 - If icon provided, `Image16by16`/`Image32by32` contain `$webresource:` values.
 
 ### Clarification examples
 - Which environment should I use?
 - Which unmanaged solution should I use?
 - What is the table logical name?
+- Should I add this button to `Form`, `Main Grid`, or `Subgrid`?
 - What button label should I set?
 - What JavaScript library web resource name should the button call?
 - What JavaScript function name should the button call?

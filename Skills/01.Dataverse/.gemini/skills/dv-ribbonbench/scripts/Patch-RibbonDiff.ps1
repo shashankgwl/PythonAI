@@ -21,6 +21,10 @@ param(
     [int]$Sequence = 100,
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet('Form', 'MainGrid', 'Main Grid', 'Subgrid', 'Sub Grid')]
+    [string]$CommandBarSurface = 'Form',
+
+    [Parameter(Mandatory = $false)]
     [string]$Image16by16WebResourceName,
 
     [Parameter(Mandatory = $false)]
@@ -116,8 +120,51 @@ function Resolve-EntityToken([string]$RibbonPath, [string]$FallbackTableLogicalN
     return $FallbackTableLogicalName.ToLowerInvariant()
 }
 
+function Normalize-CommandBarSurface([string]$Surface) {
+    switch -Regex ($Surface) {
+        '^Form$' { return 'Form' }
+        '^Main\s*Grid$' { return 'MainGrid' }
+        '^Sub\s*Grid$' { return 'Subgrid' }
+        default { throw "Unsupported CommandBarSurface '$Surface'." }
+    }
+}
+
+function Get-CommandBarSurfaceConfig([string]$Surface, [string]$TableToken) {
+    switch ($Surface) {
+        'Form' {
+            return @{
+                Location = "Mscrm.Form.$TableToken.MainTab.Actions.Controls._children"
+                ScopeToken = 'mainForm'
+                TemplateAlias = 'o1'
+                Description = 'entity main form command bar'
+            }
+        }
+        'MainGrid' {
+            return @{
+                Location = "Mscrm.HomepageGrid.$TableToken.MainTab.Management.Controls._children"
+                ScopeToken = 'mainGrid'
+                TemplateAlias = 'o6'
+                Description = 'entity main grid command bar'
+            }
+        }
+        'Subgrid' {
+            return @{
+                Location = "Mscrm.SubGrid.$TableToken.MainTab.Management.Controls._children"
+                ScopeToken = 'subGrid'
+                TemplateAlias = 'isv'
+                Description = 'entity subgrid command bar'
+            }
+        }
+        default {
+            throw "Unsupported CommandBarSurface '$Surface'."
+        }
+    }
+}
+
 $tableToken = Resolve-EntityToken -RibbonPath $RibbonDiffPath -FallbackTableLogicalName $TableLogicalName
-$containerLocation = "Mscrm.Form.$tableToken.MainTab.Actions.Controls._children"
+$normalizedCommandBarSurface = Normalize-CommandBarSurface -Surface $CommandBarSurface
+$surfaceConfig = Get-CommandBarSurfaceConfig -Surface $normalizedCommandBarSurface -TableToken $tableToken
+$containerLocation = $surfaceConfig.Location
 
 $image16 = ConvertTo-WebResourceDirective $Image16by16WebResourceName
 $image32 = ConvertTo-WebResourceDirective $Image32by32WebResourceName
@@ -134,11 +181,10 @@ if ([string]::IsNullOrWhiteSpace($JavaScriptFunctionName)) {
 
 $idPrefix = ConvertTo-IdPrefix $PublisherPrefix
 $slug = New-Slug $ButtonLabel
-$idBase = "$idPrefix.$tableToken.mainForm.$slug"
+$idBase = "$idPrefix.$tableToken.$($surfaceConfig.ScopeToken).$slug"
 $customActionId = "$idBase.CustomAction"
 $commandId = "$idBase.Command"
 $buttonId = "$idBase.Button"
-$displayRuleId = "$idBase.Refresh.DisplayRule"
 
 $doc = if (Test-Path $RibbonDiffPath) {
     $x = New-Object System.Xml.XmlDocument
@@ -172,7 +218,6 @@ $ruleDefinitions = Get-OrCreateChildElement -Parent $root -Name 'RuleDefinitions
 
 Remove-NodeById -Root $root -XPath "./CustomActions/CustomAction[@Id='{id}']" -Id $customActionId
 Remove-NodeById -Root $root -XPath "./CommandDefinitions/CommandDefinition[@Id='{id}']" -Id $commandId
-Remove-NodeById -Root $root -XPath "./RuleDefinitions/DisplayRules/DisplayRule[@Id='{id}']" -Id $displayRuleId
 
 $customAction = $doc.CreateElement('CustomAction')
 $customAction.SetAttribute('Id', $customActionId)
@@ -187,7 +232,7 @@ $button.SetAttribute('LabelText', $ButtonLabel)
 $button.SetAttribute('ToolTipTitle', $ButtonLabel)
 $button.SetAttribute('ToolTipDescription', $ButtonLabel)
 $button.SetAttribute('Sequence', [string]$Sequence)
-$button.SetAttribute('TemplateAlias', 'o1')
+$button.SetAttribute('TemplateAlias', $surfaceConfig.TemplateAlias)
 
 if ($image16) { $button.SetAttribute('Image16by16', $image16) }
 if ($image32) { $button.SetAttribute('Image32by32', $image32) }
@@ -199,12 +244,7 @@ if ($image32) { $button.SetAttribute('Image32by32', $image32) }
 $commandDefinition = $doc.CreateElement('CommandDefinition')
 $commandDefinition.SetAttribute('Id', $commandId)
 [void]$commandDefinition.AppendChild($doc.CreateElement('EnableRules'))
-
-$commandDisplayRules = $doc.CreateElement('DisplayRules')
-$commandDisplayRule = $doc.CreateElement('DisplayRule')
-$commandDisplayRule.SetAttribute('Id', $displayRuleId)
-[void]$commandDisplayRules.AppendChild($commandDisplayRule)
-[void]$commandDefinition.AppendChild($commandDisplayRules)
+[void]$commandDefinition.AppendChild($doc.CreateElement('DisplayRules'))
 
 $actions = $doc.CreateElement('Actions')
 $javaScriptFunction = $doc.CreateElement('JavaScriptFunction')
@@ -219,14 +259,6 @@ if ($PassPrimaryControl) {
 [void]$commandDefinition.AppendChild($actions)
 [void]$commandDefinitions.AppendChild($commandDefinition)
 
-$displayRulesNode = $ruleDefinitions.SelectSingleNode('./DisplayRules')
-$displayRule = $doc.CreateElement('DisplayRule')
-$displayRule.SetAttribute('Id', $displayRuleId)
-$commandClientTypeRule = $doc.CreateElement('CommandClientTypeRule')
-$commandClientTypeRule.SetAttribute('Type', 'Refresh')
-[void]$displayRule.AppendChild($commandClientTypeRule)
-[void]$displayRulesNode.AppendChild($displayRule)
-
 $settings = New-Object System.Xml.XmlWriterSettings
 $settings.Indent = $true
 $settings.IndentChars = '  '
@@ -238,9 +270,10 @@ $writer = [System.Xml.XmlWriter]::Create($RibbonDiffPath, $settings)
 $doc.Save($writer)
 $writer.Dispose()
 
-Write-Host 'Patched RibbonDiffXml for entity main form command bar.'
+Write-Host "Patched RibbonDiffXml for $($surfaceConfig.Description)."
 Write-Host "  File: $RibbonDiffPath"
 Write-Host "  Table token: $tableToken"
+Write-Host "  Surface: $normalizedCommandBarSurface"
 Write-Host "  Container: $containerLocation"
 Write-Host "  CustomAction Id: $customActionId"
 Write-Host "  Button Id: $buttonId"
