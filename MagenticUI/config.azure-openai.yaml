@@ -1,12 +1,19 @@
 azure_client: &azure_client
   provider: AzureOpenAIChatCompletionClient
   config:
-    model: gpt-4.1
-    azure_endpoint: https://ai-shashankbhide-5438.openai.azure.com/
-    azure_deployment: gpt-4.1-945183
+    model: gpt-5.4-2026-03-05
+    azure_endpoint: https://ai-shashankbhide-5438.cognitiveservices.azure.com/
+    azure_deployment: gpt-5.4
     api_version: 2024-12-01-preview
     api_key: __AZURE_OPENAI_API_KEY__
     max_retries: 5
+    model_info:
+          vision: true
+          function_calling: true
+          json_output: true
+          structured_output: true
+          family: unknown
+
 
 orchestrator_client: *azure_client
 coder_client: *azure_client
